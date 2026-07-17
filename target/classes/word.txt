@@ -1,4 +1,0 @@
-PYRAMID:Ancient structure
-JAVA:A popular modern programming language
-DEVELOPER:A person who designs and writes code
-LAPTOP:A portable personal computer
