@@ -7,10 +7,7 @@
     <groupId>fr.quentin-cillierre</groupId>
     <artifactId>hang-man</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <packaging>pom</packaging>
-    <modules>
-        <module>demo</module>
-    </modules>
+    <packaging>jar</packaging>
     <name>Hang Man</name>
 
     <properties>
