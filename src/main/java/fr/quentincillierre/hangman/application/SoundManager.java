@@ -8,13 +8,6 @@ import java.net.URL;
 
 public class SoundManager {
 
-
-    public static void stopFailSound() {
-    if (failSound != null && failSound.isPlaying()) {
-        failSound.stop();
-    }
-}
-
     private static AudioClip failSound;
 
     static {
@@ -47,7 +40,15 @@ public class SoundManager {
 
     public static void playFailSound() {
         if (failSound != null) {
+            failSound.stop();
+            failSound.setCycleCount(AudioClip.INDEFINITE); // Loop until explicitly stopped
             failSound.play();
+        }
+    }
+
+    public static void stopFailSound() {
+        if (failSound != null) {
+            failSound.stop(); // Cuts off the music completely
         }
     }
 
