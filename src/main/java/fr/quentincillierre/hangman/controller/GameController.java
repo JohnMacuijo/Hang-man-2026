@@ -1,6 +1,7 @@
 package fr.quentincillierre.hangman.controller;
 
 import fr.quentincillierre.hangman.application.SoundManager;
+import fr.quentincillierre.hangman.model.Difficulty;
 import fr.quentincillierre.hangman.model.HangmanModel;
 import fr.quentincillierre.hangman.model.WordRepository;
 import fr.quentincillierre.hangman.model.WordRepository.HangmanQuestion;
@@ -24,7 +25,7 @@ import javafx.scene.text.Font;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
-public class GameController {   
+public class GameController {
 
     @FXML
     private HBox wordDisplayBox;
@@ -42,7 +43,7 @@ public class GameController {
     private HBox statusContainer;
 
     @FXML
-    private Label hintLabel; 
+    private Label hintLabel;
 
     @FXML
     private ImageView hangmanImageView;
@@ -57,7 +58,7 @@ public class GameController {
     private Button restartBtn;
 
     private HangmanModel model;
-    private String currentHint = ""; 
+    private String currentHint = "";
 
     @FXML
     private Label timerLabel;
@@ -71,11 +72,12 @@ public class GameController {
         {"Z", "X", "C", "V", "B", "N", "M"}
     };
 
+    private Difficulty difficulty = Difficulty.EASY;
+    private String wordFile = "easy.txt";
+
     @FXML
     public void initialize() {
         applyButtonAnimations(restartBtn, "#ff7a00", "#0b0c10", "#e06b00", "#0b0c10");
-        
-        startNewGame();
 
         Platform.runLater(() -> {
             if (keyboardGrid.getScene() != null) {
@@ -90,7 +92,9 @@ public class GameController {
     }
 
     private void startNewGame() {
-        WordRepository wordRepository = new WordRepository();
+        restartBtn.setDisable(false);
+
+        WordRepository wordRepository = new WordRepository(wordFile);
         HangmanQuestion question = wordRepository.getRandomQuestion();
 
         model = new HangmanModel(question.text());
@@ -102,30 +106,39 @@ public class GameController {
 
         generateKeyboard();
         refreshUI();
-        
+
         keyboardGrid.setDisable(false);
         startTimer();
     }
 
     private void startTimer() {
-
         if (countdownTimer != null) {
             countdownTimer.stop();
         }
 
-        timeRemaining = 30;
+        // Set initial timer based on selected difficulty
+        switch (difficulty) {
+            case EASY -> timeRemaining = 90;
+            case MEDIUM -> timeRemaining = 60;
+            case HARD -> timeRemaining = 45;
+        }
 
         timerLabel.setText(String.valueOf(timeRemaining));
 
         countdownTimer = new Timeline(
             new KeyFrame(Duration.seconds(1), e -> {
+                // Stop timer if game is over
+                if (model.isWin() || model.isLose()) {
+                    countdownTimer.stop();
+                    return;
+                }
 
-                timeRemaining--;
-
-                timerLabel.setText(String.valueOf(timeRemaining));
+                if (timeRemaining > 0) {
+                    timeRemaining--;
+                    timerLabel.setText(String.valueOf(timeRemaining));
+                }
 
                 if (timeRemaining <= 0) {
-
                     countdownTimer.stop();
 
                     // Play custom fail sound on time out
@@ -141,7 +154,7 @@ public class GameController {
                             "-fx-background-radius:6px;" +
                             "-fx-padding:10px 25px;");
 
-                    statusLabel.setText("⏰ Time's Up!");
+                    statusLabel.setText("⏰ Time's Up! The word was \"" + model.getWordToGuess() + "\"");
                     statusLabel.setStyle(
                             "-fx-text-fill:#f85149;" +
                             "-fx-font-weight:bold;" +
@@ -149,22 +162,21 @@ public class GameController {
 
                     keyboardGrid.setDisable(true);
                 }
-
             })
         );
 
         countdownTimer.setCycleCount(Timeline.INDEFINITE);
-
         countdownTimer.play();
-
     }
 
     private void handleLetter(String s) {
-        if (s == null || s.isBlank() || model.isWin() || model.isLose()) return;
-        
+        if (timeRemaining <= 0 || s == null || s.isBlank() || model.isWin() || model.isLose()) {
+            return;
+        }
+
         char letterChar = Character.toLowerCase(s.charAt(0));
-        
-        // Only trigger click sound if the letter hasn't already been guessed
+
+        // Trigger click sound if letter hasn't been guessed yet
         if (!model.getGuessedLetter().contains(letterChar)) {
             SoundManager.playClickSound(600, 25);
         }
@@ -176,7 +188,7 @@ public class GameController {
     private void refreshUI() {
         renderWordBoxes();
 
-        int maxAttempts = 10; 
+        int maxAttempts = 10;
         int currentWrongs = model.getCurrentWrongs();
         int attemptsLeft = Math.max(0, maxAttempts - currentWrongs);
         wrongLabel.setText(attemptsLeft + " left");
@@ -230,9 +242,9 @@ public class GameController {
                         String letter = b.getText().toLowerCase();
                         char letterChar = letter.charAt(0);
                         boolean alreadyGuessed = model.getGuessedLetter().contains(letterChar);
-                        
+
                         b.setDisable(alreadyGuessed || model.isWin() || model.isLose());
-                        
+
                         if (alreadyGuessed) {
                             b.setScaleX(1.0);
                             b.setScaleY(1.0);
@@ -257,11 +269,11 @@ public class GameController {
             char displayChar = hiddenWord.charAt(i);
             Label letterLabel = new Label(displayChar == '_' ? "" : String.valueOf(displayChar));
             letterLabel.setFont(new Font("System Bold", 20));
-            
+
             VBox charBox = new VBox(letterLabel);
             charBox.setAlignment(Pos.CENTER);
             charBox.setPrefSize(45, 45);
-            
+
             if (displayChar != '_') {
                 charBox.setStyle("-fx-border-color: #ff7a00; -fx-border-width: 2px; -fx-border-radius: 8px; -fx-background-color: #21262d; -fx-background-radius: 8px; -fx-effect: dropshadow(three-pass-box, rgba(255,122,0,0.2), 5, 0, 0, 0);");
                 letterLabel.setStyle("-fx-text-fill: #ff7a00;");
@@ -269,11 +281,11 @@ public class GameController {
                 charBox.setStyle("-fx-border-color: #30363d; -fx-border-width: 1px; -fx-border-radius: 8px; -fx-background-color: #0d1117; -fx-background-radius: 8px;");
                 letterLabel.setStyle("-fx-text-fill: #ffffff;");
             }
-            
+
             VBox baseContainer = new VBox(charBox);
             baseContainer.setSpacing(4);
             baseContainer.setAlignment(Pos.CENTER);
-            
+
             Label underline = new Label();
             underline.setPrefSize(35, 2);
             if (displayChar != '_') {
@@ -293,12 +305,12 @@ public class GameController {
         for (int rowIndex = 0; rowIndex < QWERTY_LAYOUT.length; rowIndex++) {
             HBox rowContainer = new HBox(10);
             rowContainer.setAlignment(Pos.CENTER);
-            
+
             for (String key : QWERTY_LAYOUT[rowIndex]) {
                 Button btn = new Button(key);
                 btn.setPrefSize(42, 42);
                 btn.setStyle("-fx-background-color: #161b22; -fx-text-fill: #ffffff; -fx-border-color: #30363d; -fx-border-radius: 12px; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-cursor: hand;");
-                
+
                 applyButtonAnimations(btn, "#161b22", "#ffffff", "#ff7a00", "#0b0c10");
 
                 btn.setOnAction(e -> handleLetter(btn.getText()));
@@ -350,20 +362,32 @@ public class GameController {
     public void exit() {
         Stage stage = (Stage) restartBtn.getScene().getWindow();
         stage.close();
-    } 
-    
+    }
+
     @FXML
     public void restart() {
-    // Stop the fail sound immediately if it's still playing
-    SoundManager.stopFailSound();
-    
-    // Play the new word chime
-    SoundManager.playNewWordSound();
-    
-    ScaleTransition clickAnim = new ScaleTransition(Duration.millis(100), restartBtn);
-    clickAnim.setToX(1.0);
-    clickAnim.setToY(1.0);
-    clickAnim.setOnFinished(e -> startNewGame());
-    clickAnim.play();
-}
+        // Stop the fail sound immediately if it's playing
+        SoundManager.stopFailSound();
+
+        // Play the new word chime sound
+        SoundManager.playNewWordSound();
+
+        ScaleTransition clickAnim = new ScaleTransition(Duration.millis(100), restartBtn);
+        clickAnim.setToX(1.0);
+        clickAnim.setToY(1.0);
+        clickAnim.setOnFinished(e -> startNewGame());
+        clickAnim.play();
+    }
+
+    public void setDifficulty(Difficulty difficulty) {
+        this.difficulty = difficulty;
+
+        switch (difficulty) {
+            case EASY -> wordFile = "easy.txt";
+            case MEDIUM -> wordFile = "medium.txt";
+            case HARD -> wordFile = "hard.txt";
+        }
+
+        startNewGame();
+    }
 }
