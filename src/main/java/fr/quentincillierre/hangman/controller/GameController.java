@@ -6,6 +6,7 @@ import fr.quentincillierre.hangman.model.HangmanModel;
 import fr.quentincillierre.hangman.model.WordRepository;
 import fr.quentincillierre.hangman.model.WordRepository.HangmanQuestion;
 import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
 import javafx.animation.ScaleTransition;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
@@ -26,6 +27,9 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 
 public class GameController {
+
+    @FXML
+    private VBox rootLayout;
 
     @FXML
     private HBox wordDisplayBox;
@@ -64,6 +68,7 @@ public class GameController {
     private Label timerLabel;
 
     private Timeline countdownTimer;
+    private Timeline criticalPulseAnimation;
     private int timeRemaining = 60;
 
     private final String[][] QWERTY_LAYOUT = {
@@ -104,6 +109,9 @@ public class GameController {
         statusContainer.setVisible(false);
         statusContainer.setManaged(false);
 
+        // Reset critical visual effects back to dark theme
+        setCriticalGlow(timerLabel, false);
+
         generateKeyboard();
         refreshUI();
 
@@ -116,7 +124,6 @@ public class GameController {
             countdownTimer.stop();
         }
 
-        // Set initial timer based on selected difficulty
         switch (difficulty) {
             case EASY -> timeRemaining = 90;
             case MEDIUM -> timeRemaining = 60;
@@ -127,7 +134,6 @@ public class GameController {
 
         countdownTimer = new Timeline(
             new KeyFrame(Duration.seconds(1), e -> {
-                // Stop timer if game is over
                 if (model.isWin() || model.isLose()) {
                     countdownTimer.stop();
                     return;
@@ -136,31 +142,17 @@ public class GameController {
                 if (timeRemaining > 0) {
                     timeRemaining--;
                     timerLabel.setText(String.valueOf(timeRemaining));
+
+                    // Check for low time critical state (<= 10 seconds)
+                    if (timeRemaining <= 10) {
+                        setCriticalGlow(timerLabel, true);
+                        SoundManager.playClickSound(180, 40);
+                    }
                 }
 
                 if (timeRemaining <= 0) {
                     countdownTimer.stop();
-
-                    // Play custom fail sound on time out
-                    SoundManager.playFailSound();
-
-                    statusContainer.setVisible(true);
-                    statusContainer.setManaged(true);
-
-                    statusContainer.setStyle(
-                            "-fx-background-color: rgba(248,81,73,0.15);" +
-                            "-fx-border-color:#f85149;" +
-                            "-fx-border-radius:6px;" +
-                            "-fx-background-radius:6px;" +
-                            "-fx-padding:10px 25px;");
-
-                    statusLabel.setText("⏰ Time's Up! The word was \"" + model.getWordToGuess() + "\"");
-                    statusLabel.setStyle(
-                            "-fx-text-fill:#f85149;" +
-                            "-fx-font-weight:bold;" +
-                            "-fx-font-size:15px;");
-
-                    keyboardGrid.setDisable(true);
+                    triggerGameOver(true); // Game over due to time limit
                 }
             })
         );
@@ -176,9 +168,14 @@ public class GameController {
 
         char letterChar = Character.toLowerCase(s.charAt(0));
 
-        // Trigger click sound if letter hasn't been guessed yet
         if (!model.getGuessedLetter().contains(letterChar)) {
-            SoundManager.playClickSound(600, 25);
+            String targetWord = model.getWordToGuess().toLowerCase();
+            
+            if (targetWord.contains(String.valueOf(letterChar))) {
+                SoundManager.playCorrectSound();
+            } else {
+                SoundManager.playClickSound(600, 25);
+            }
         }
 
         model.tryLetter(s.charAt(0));
@@ -196,13 +193,19 @@ public class GameController {
         double progress = (double) currentWrongs / maxAttempts;
         dangerProgressBar.setProgress(progress);
 
+        if (attemptsLeft <= 2 && attemptsLeft > 0) {
+            dangerProgressBar.setStyle("-fx-accent: #f85149; -fx-effect: dropshadow(three-pass-box, rgba(248,81,73,0.6), 8, 0, 0, 0);");
+        } else {
+            dangerProgressBar.setStyle("-fx-accent: #ff7a00;");
+        }
+
         hintLabel.setText(currentHint);
         wordLengthLabel.setText(model.getWordToGuess().length() + " letters");
 
         if (model.isWin()) {
-            if (countdownTimer != null) {
-                countdownTimer.stop();
-            }
+            if (countdownTimer != null) countdownTimer.stop();
+            setCriticalGlow(timerLabel, false);
+
             statusContainer.setVisible(true);
             statusContainer.setManaged(true);
             statusContainer.setStyle("-fx-background-color: rgba(46,204,113,0.15); -fx-border-color: #2ecc71; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-padding: 10px 25px;");
@@ -210,19 +213,8 @@ public class GameController {
             statusLabel.setStyle("-fx-text-fill: #2ecc71; -fx-font-weight: bold; -fx-font-size: 15px;");
             restartBtn.setText("Play Again");
         } else if (model.isLose()) {
-            if (countdownTimer != null) {
-                countdownTimer.stop();
-            }
-
-            // Play custom fail sound on game over
-            SoundManager.playFailSound();
-
-            statusContainer.setVisible(true);
-            statusContainer.setManaged(true);
-            statusContainer.setStyle("-fx-background-color: rgba(248,81,73,0.15); -fx-border-color: #f85149; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-padding: 10px 25px;");
-            statusLabel.setText("💀 Game over — it was \"" + model.getWordToGuess() + "\"");
-            statusLabel.setStyle("-fx-text-fill: #f85149; -fx-font-weight: bold; -fx-font-size: 15px;");
-            restartBtn.setText("Play Again");
+            if (countdownTimer != null) countdownTimer.stop();
+            triggerGameOver(false); // Game over due to wrong guesses
         }
 
         if (hangmanImageView != null) {
@@ -258,6 +250,34 @@ public class GameController {
                 }
             }
         }
+    }
+
+    private void triggerGameOver(boolean isTimeOut) {
+        SoundManager.playFailSound();
+
+        // 1. FLASH SCREEN AND TIMEOUT CARDS DEEP RED
+        if (rootLayout != null) {
+            rootLayout.setStyle(
+                "-fx-background-color: #2b0909;" + 
+                "-fx-border-color: #f85149;" +       
+                "-fx-border-width: 3px;" +
+                "-fx-effect: innershadow(three-pass-box, rgba(248,81,73,0.8), 30, 0, 0, 0);"
+            );
+        }
+
+        statusContainer.setVisible(true);
+        statusContainer.setManaged(true);
+        statusContainer.setStyle("-fx-background-color: rgba(248,81,73,0.15); -fx-border-color: #f85149; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-padding: 10px 25px;");
+        
+        if (isTimeOut) {
+            statusLabel.setText("⏰ Time's Up! The word was \"" + model.getWordToGuess() + "\"");
+        } else {
+            statusLabel.setText("💀 Game over — it was \"" + model.getWordToGuess() + "\"");
+        }
+        
+        statusLabel.setStyle("-fx-text-fill: #f85149; -fx-font-weight: bold; -fx-font-size: 15px;");
+        restartBtn.setText("Play Again");
+        keyboardGrid.setDisable(true);
     }
 
     private void renderWordBoxes() {
@@ -359,6 +379,73 @@ public class GameController {
         });
     }
 
+    private void setCriticalGlow(Node node, boolean enable) {
+    if (enable) {
+        if (criticalPulseAnimation != null && criticalPulseAnimation.getStatus() == Timeline.Status.RUNNING) {
+            return; // Animation is already playing
+        }
+
+        // --- PULSING TIMER & BLINKING RED BACKGROUND ---
+        criticalPulseAnimation = new Timeline(
+            // Frame 0: Start state (Dark red screen + Normal timer size)
+            new KeyFrame(Duration.ZERO, 
+                new KeyValue(node.scaleXProperty(), 1.0), 
+                new KeyValue(node.scaleYProperty(), 1.0)
+            ),
+            // Frame 500ms: Peak state (Bright glowing red screen + Enlarged timer label)
+            new KeyFrame(Duration.millis(500), 
+                new KeyValue(node.scaleXProperty(), 1.2), 
+                new KeyValue(node.scaleYProperty(), 1.2)
+            )
+        );
+
+        // Update the inline styles dynamically on each pulse cycle
+        criticalPulseAnimation.currentTimeProperty().addListener((observable, oldValue, newValue) -> {
+            if (rootLayout == null || criticalPulseAnimation == null) return;
+
+            // Interpolate pulse intensity between 0.0 and 1.0 based on timeline progress
+            double progress = newValue.toMillis() / 500.0;
+            
+            // Pulse the screen border & inner glow intensity
+            rootLayout.setStyle(
+                String.format(
+                    "-fx-background-color: derive(#2b0909, %f%%);" + 
+                    "-fx-border-color: #f85149;" +       
+                    "-fx-border-width: 3px;" +
+                    "-fx-effect: innershadow(three-pass-box, rgba(248,81,73,%.2f), 35, 0, 0, 0);",
+                    (progress * 20.0), // Smoothly brightens the red background
+                    (0.4 + (progress * 0.5)) // Modulates glow transparency (0.4 to 0.9)
+                )
+            );
+        });
+
+        criticalPulseAnimation.setCycleCount(Timeline.INDEFINITE);
+        criticalPulseAnimation.setAutoReverse(true);
+        criticalPulseAnimation.play();
+
+        // High-contrast red styling for the timer text
+        node.setStyle("-fx-text-fill: #f85149; -fx-font-weight: bold; -fx-font-size: 15px; -fx-effect: dropshadow(three-pass-box, rgba(248,81,73,0.9), 12, 0, 0, 0);");
+
+    } else {
+        // --- RESET BACK TO NORMAL ---
+        if (criticalPulseAnimation != null) {
+            criticalPulseAnimation.stop();
+        }
+        
+        node.setScaleX(1.0);
+        node.setScaleY(1.0);
+        node.setStyle("-fx-text-fill: #ff4a4a; -fx-font-weight: bold; -fx-font-size: 12px;");
+
+        // Restore clean dark theme background
+        if (rootLayout != null) {
+            rootLayout.setStyle(
+                "-fx-background-color: #0b0c10;" + 
+                "-fx-border-color: transparent;" +
+                "-fx-effect: none;"
+            );
+        }
+    }
+}
     public void exit() {
         Stage stage = (Stage) restartBtn.getScene().getWindow();
         stage.close();
@@ -366,10 +453,7 @@ public class GameController {
 
     @FXML
     public void restart() {
-        // Stop the fail sound immediately if it's playing
         SoundManager.stopFailSound();
-
-        // Play the new word chime sound
         SoundManager.playNewWordSound();
 
         ScaleTransition clickAnim = new ScaleTransition(Duration.millis(100), restartBtn);

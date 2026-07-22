@@ -8,6 +8,17 @@ import java.net.URL;
 
 public class SoundManager {
 
+    public static void playCorrectSound() {
+    new Thread(() -> {
+        try {
+            // First note (E5 - 659 Hz for 50ms)
+            playToneBuffer(659, 50, 0.4);
+            Thread.sleep(40);
+            // Second higher note (A5 - 880 Hz for 80ms)
+            playToneBuffer(880, 80, 0.5);
+        } catch (Exception ignored) {}
+    }).start();
+}
     private static AudioClip failSound;
 
     static {
