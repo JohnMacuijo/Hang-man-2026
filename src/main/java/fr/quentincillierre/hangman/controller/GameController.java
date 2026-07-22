@@ -1,5 +1,6 @@
 package fr.quentincillierre.hangman.controller;
 
+import fr.quentincillierre.hangman.model.Difficulty;
 import fr.quentincillierre.hangman.model.HangmanModel;
 import fr.quentincillierre.hangman.model.WordRepository;
 import fr.quentincillierre.hangman.model.WordRepository.HangmanQuestion;
@@ -70,13 +71,13 @@ private int timeRemaining = 60;
         {"Z", "X", "C", "V", "B", "N", "M"}
     };
 
+    private Difficulty difficulty = Difficulty.EASY;
+
+    private String wordFile = "easy.txt";
+
     @FXML
     public void initialize() {
         applyButtonAnimations(restartBtn, "#ff7a00", "#0b0c10", "#e06b00", "#0b0c10");
-        
-        startNewGame();
-
-        
 
         Platform.runLater(() -> {
             if (keyboardGrid.getScene() != null) {
@@ -91,7 +92,10 @@ private int timeRemaining = 60;
     }
 
     private void startNewGame() {
-        WordRepository wordRepository = new WordRepository();
+
+        restartBtn.setDisable(false);
+
+        WordRepository wordRepository = new WordRepository(wordFile);
         HangmanQuestion question = wordRepository.getRandomQuestion();
 
         model = new HangmanModel(question.text());
@@ -114,41 +118,49 @@ private int timeRemaining = 60;
         countdownTimer.stop();
     }
 
-    timeRemaining = 30;
+    timerLabel.setText(String.valueOf(timeRemaining));
 
     timerLabel.setText(String.valueOf(timeRemaining));
 
     countdownTimer = new Timeline(
         new KeyFrame(Duration.seconds(1), e -> {
 
-            timeRemaining--;
+    // Stop the timer if the game is already over
+    if (model.isWin() || model.isLose()) {
+        countdownTimer.stop();
+        return;
+    }
 
-            timerLabel.setText(String.valueOf(timeRemaining));
+    if (timeRemaining > 0) {
+        timeRemaining--;
+        timerLabel.setText(String.valueOf(timeRemaining));
+    }
 
-            if (timeRemaining <= 0) {
+    if (timeRemaining == 0) {
 
-                countdownTimer.stop();
+        countdownTimer.stop();
 
-                statusContainer.setVisible(true);
-                statusContainer.setManaged(true);
+        statusContainer.setVisible(true);
+        statusContainer.setManaged(true);
 
-                statusContainer.setStyle(
-                        "-fx-background-color: rgba(248,81,73,0.15);" +
-                        "-fx-border-color:#f85149;" +
-                        "-fx-border-radius:6px;" +
-                        "-fx-background-radius:6px;" +
-                        "-fx-padding:10px 25px;");
+        statusContainer.setStyle(
+                "-fx-background-color: rgba(248,81,73,0.15);" +
+                "-fx-border-color:#f85149;" +
+                "-fx-border-radius:6px;" +
+                "-fx-background-radius:6px;" +
+                "-fx-padding:10px 25px;");
 
-                statusLabel.setText("⏰ Time's Up!");
-                statusLabel.setStyle(
-                        "-fx-text-fill:#f85149;" +
-                        "-fx-font-weight:bold;" +
-                        "-fx-font-size:15px;");
+        statusLabel.setText("⏰ Time's Up! The word was \"" + model.getWordToGuess() + "\"");
+        statusLabel.setStyle(
+                "-fx-text-fill:#f85149;" +
+                "-fx-font-weight:bold;" +
+                "-fx-font-size:15px;");
 
-                keyboardGrid.setDisable(true);
-            }
+        keyboardGrid.setDisable(true);
+        restartBtn.setDisable(true);
+    }
 
-        })
+})
     );
 
     countdownTimer.setCycleCount(Timeline.INDEFINITE);
@@ -158,10 +170,18 @@ private int timeRemaining = 60;
 }
 
     private void handleLetter(String s) {
-        if (s == null || s.isBlank() || model.isWin() || model.isLose()) return;
-        model.tryLetter(s.charAt(0));
-        refreshUI();
+
+    if (timeRemaining <= 0) {
+        return;
     }
+
+    if (s == null || s.isBlank() || model.isWin() || model.isLose()) {
+        return;
+    }
+
+    model.tryLetter(s.charAt(0));
+    refreshUI();
+}
 
     private void refreshUI() {
         renderWordBoxes();
@@ -346,4 +366,29 @@ private int timeRemaining = 60;
         clickAnim.setOnFinished(e -> startNewGame());
         clickAnim.play();
     }
+
+    public void setDifficulty(Difficulty difficulty) {
+
+    this.difficulty = difficulty;
+
+    switch (difficulty) {
+
+        case EASY:
+            wordFile = "easy.txt";
+            timeRemaining = 90;
+            break;
+
+        case MEDIUM:
+            wordFile = "medium.txt";
+            timeRemaining = 60;
+            break;
+
+        case HARD:
+            wordFile = "hard.txt";
+            timeRemaining = 45;
+            break;
+    }
+
+    startNewGame();
+}
 }
