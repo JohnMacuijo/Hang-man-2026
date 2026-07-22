@@ -1,5 +1,6 @@
 package fr.quentincillierre.hangman.controller;
 
+import fr.quentincillierre.hangman.application.SoundManager;
 import fr.quentincillierre.hangman.model.HangmanModel;
 import fr.quentincillierre.hangman.model.WordRepository;
 import fr.quentincillierre.hangman.model.WordRepository.HangmanQuestion;
@@ -59,10 +60,10 @@ public class GameController {
     private String currentHint = ""; 
 
     @FXML
-private Label timerLabel;
+    private Label timerLabel;
 
-private Timeline countdownTimer;
-private int timeRemaining = 60;
+    private Timeline countdownTimer;
+    private int timeRemaining = 60;
 
     private final String[][] QWERTY_LAYOUT = {
         {"Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"},
@@ -75,8 +76,6 @@ private int timeRemaining = 60;
         applyButtonAnimations(restartBtn, "#ff7a00", "#0b0c10", "#e06b00", "#0b0c10");
         
         startNewGame();
-
-        
 
         Platform.runLater(() -> {
             if (keyboardGrid.getScene() != null) {
@@ -110,55 +109,66 @@ private int timeRemaining = 60;
 
     private void startTimer() {
 
-    if (countdownTimer != null) {
-        countdownTimer.stop();
+        if (countdownTimer != null) {
+            countdownTimer.stop();
+        }
+
+        timeRemaining = 30;
+
+        timerLabel.setText(String.valueOf(timeRemaining));
+
+        countdownTimer = new Timeline(
+            new KeyFrame(Duration.seconds(1), e -> {
+
+                timeRemaining--;
+
+                timerLabel.setText(String.valueOf(timeRemaining));
+
+                if (timeRemaining <= 0) {
+
+                    countdownTimer.stop();
+
+                    // Play custom fail sound on time out
+                    SoundManager.playFailSound();
+
+                    statusContainer.setVisible(true);
+                    statusContainer.setManaged(true);
+
+                    statusContainer.setStyle(
+                            "-fx-background-color: rgba(248,81,73,0.15);" +
+                            "-fx-border-color:#f85149;" +
+                            "-fx-border-radius:6px;" +
+                            "-fx-background-radius:6px;" +
+                            "-fx-padding:10px 25px;");
+
+                    statusLabel.setText("⏰ Time's Up!");
+                    statusLabel.setStyle(
+                            "-fx-text-fill:#f85149;" +
+                            "-fx-font-weight:bold;" +
+                            "-fx-font-size:15px;");
+
+                    keyboardGrid.setDisable(true);
+                }
+
+            })
+        );
+
+        countdownTimer.setCycleCount(Timeline.INDEFINITE);
+
+        countdownTimer.play();
+
     }
-
-    timeRemaining = 30;
-
-    timerLabel.setText(String.valueOf(timeRemaining));
-
-    countdownTimer = new Timeline(
-        new KeyFrame(Duration.seconds(1), e -> {
-
-            timeRemaining--;
-
-            timerLabel.setText(String.valueOf(timeRemaining));
-
-            if (timeRemaining <= 0) {
-
-                countdownTimer.stop();
-
-                statusContainer.setVisible(true);
-                statusContainer.setManaged(true);
-
-                statusContainer.setStyle(
-                        "-fx-background-color: rgba(248,81,73,0.15);" +
-                        "-fx-border-color:#f85149;" +
-                        "-fx-border-radius:6px;" +
-                        "-fx-background-radius:6px;" +
-                        "-fx-padding:10px 25px;");
-
-                statusLabel.setText("⏰ Time's Up!");
-                statusLabel.setStyle(
-                        "-fx-text-fill:#f85149;" +
-                        "-fx-font-weight:bold;" +
-                        "-fx-font-size:15px;");
-
-                keyboardGrid.setDisable(true);
-            }
-
-        })
-    );
-
-    countdownTimer.setCycleCount(Timeline.INDEFINITE);
-
-    countdownTimer.play();
-
-}
 
     private void handleLetter(String s) {
         if (s == null || s.isBlank() || model.isWin() || model.isLose()) return;
+        
+        char letterChar = Character.toLowerCase(s.charAt(0));
+        
+        // Only trigger click sound if the letter hasn't already been guessed
+        if (!model.getGuessedLetter().contains(letterChar)) {
+            SoundManager.playClickSound(600, 25);
+        }
+
         model.tryLetter(s.charAt(0));
         refreshUI();
     }
@@ -178,7 +188,7 @@ private int timeRemaining = 60;
         wordLengthLabel.setText(model.getWordToGuess().length() + " letters");
 
         if (model.isWin()) {
-            if(countdownTimer != null){
+            if (countdownTimer != null) {
                 countdownTimer.stop();
             }
             statusContainer.setVisible(true);
@@ -191,6 +201,10 @@ private int timeRemaining = 60;
             if (countdownTimer != null) {
                 countdownTimer.stop();
             }
+
+            // Play custom fail sound on game over
+            SoundManager.playFailSound();
+
             statusContainer.setVisible(true);
             statusContainer.setManaged(true);
             statusContainer.setStyle("-fx-background-color: rgba(248,81,73,0.15); -fx-border-color: #f85149; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-padding: 10px 25px;");
@@ -340,10 +354,16 @@ private int timeRemaining = 60;
     
     @FXML
     public void restart() {
-        ScaleTransition clickAnim = new ScaleTransition(Duration.millis(100), restartBtn);
-        clickAnim.setToX(1.0);
-        clickAnim.setToY(1.0);
-        clickAnim.setOnFinished(e -> startNewGame());
-        clickAnim.play();
-    }
+    // Stop the fail sound immediately if it's still playing
+    SoundManager.stopFailSound();
+    
+    // Play the new word chime
+    SoundManager.playNewWordSound();
+    
+    ScaleTransition clickAnim = new ScaleTransition(Duration.millis(100), restartBtn);
+    clickAnim.setToX(1.0);
+    clickAnim.setToY(1.0);
+    clickAnim.setOnFinished(e -> startNewGame());
+    clickAnim.play();
+}
 }
