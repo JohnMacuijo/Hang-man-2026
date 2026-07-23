@@ -133,15 +133,15 @@ public class GameController {
             System.err.println("⚠️ Could not wrap hangmanImageView inside parent container.");
         }
 
-        // 3. Pre-load video file with fallback resource checks
+        // 3. Pre-load video file with updated resource path inside /pictures/
         try {
-            URL videoUrl = getClass().getResource("/dancing-cat.mp4");
+            URL videoUrl = getClass().getResource("/pictures/dancing-cat.mp4");
 
             if (videoUrl == null) {
-                videoUrl = GameController.class.getClassLoader().getResource("dancing-cat.mp4");
+                videoUrl = getClass().getResource("/dancing-cat.mp4");
             }
             if (videoUrl == null) {
-                videoUrl = getClass().getResource("/pictures/dancing-cat.mp4");
+                videoUrl = GameController.class.getClassLoader().getResource("pictures/dancing-cat.mp4");
             }
 
             if (videoUrl != null) {
@@ -159,7 +159,7 @@ public class GameController {
                 victoryVideoPlayer.setVolume(1.0);
                 victoryVideoPlayer.setCycleCount(MediaPlayer.INDEFINITE);
             } else {
-                System.err.println("ℹ️ No MP4 found or using GIF mode.");
+                System.err.println("ℹ️ No MP4 video found in /pictures/ or root. (Fallback to GIF if available)");
             }
         } catch (Exception e) {
             System.err.println("❌ Exception during video initialization:");
@@ -183,7 +183,7 @@ public class GameController {
             return;
         }
 
-        // Priority 2: Use MediaPlayer if MP4 is loaded
+        // Priority 2: Use MediaPlayer if MP4 is loaded successfully
         if (hangmanImageView != null) hangmanImageView.setVisible(false);
         if (hangmanMediaView != null) hangmanMediaView.setVisible(true);
 
